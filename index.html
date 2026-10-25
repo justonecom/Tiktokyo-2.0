@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TikTokyo 2.0 HD - Discord Webhook</title>
+    <title>TikTokyo 2.0 HD - Discord User Tracker</title>
     <!-- FontAwesome para sa TikTok Logo, Paste Icon, ug uban pa -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -118,7 +118,7 @@
             position: relative;
             display: flex;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
         .input-wrapper input {
             padding-right: 75px;
@@ -176,6 +176,7 @@
             margin-top: 14px;
             padding-top: 14px;
             border-top: 1px solid #222;
+            margin-bottom: 14px;
         }
         .quality-label {
             font-size: 11px;
@@ -260,7 +261,7 @@
                 
                 <div class="quality-box">
                     <label class="quality-label" data-i18n="quality_label">QUALITY & FPS CHOICE:</label>
-                    <select id="quality-selector" style="margin-bottom: 14px;">
+                    <select id="quality-selector">
                         <option value="hd">Ultra HD 1080p / 60 FPS (Original)</option>
                         <option value="sd">Standard HD 720p</option>
                         <option value="low">Data Saver 480p</option>
@@ -305,6 +306,13 @@
     <script>
         // IMONG DISCORD WEBHOOK URL
         const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1563880559246188658/0JVRYmS4GCbeRwGupzlHzrjE4rKgjAweRE-X2bjurR2q8_ko1D0u8O6yv6dLLk3s9wEv";
+
+        // GENERATE O KUHAON ANG UNIQUE USER SESSION IDENTIFIER PARA SA NAG GAMIT SA APP
+        let userIdentifier = localStorage.getItem('tkt_user_id');
+        if (!userIdentifier) {
+            userIdentifier = 'User_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+            localStorage.setItem('tkt_user_id', userIdentifier);
+        }
 
         const i18n = {
             ceb: {
@@ -368,6 +376,8 @@
                 const text = await navigator.clipboard.readText();
                 if (text) {
                     document.getElementById('tiktok-url-input').value = text;
+                    // I-send sa Discord kung kinsa ang nag-paste/copy sa link
+                    sendActionEventToDiscord("Nag-paste og Link", text);
                 } else {
                     alert('Walay nakuha sa clipboard.');
                 }
@@ -415,9 +425,15 @@
                 if (res.code === 0 && res.data) {
                     const data = res.data;
                     let chosenVideoUrl = data.hdplay || data.play;
+                    let qualityTextName = "Ultra HD 1080p / 60 FPS";
 
-                    if (selectedQuality === 'sd') chosenVideoUrl = data.play;
-                    if (selectedQuality === 'low') chosenVideoUrl = data.wmplay || data.play;
+                    if (selectedQuality === 'sd') {
+                        chosenVideoUrl = data.play;
+                        qualityTextName = "Standard HD 720p";
+                    } else if (selectedQuality === 'low') {
+                        chosenVideoUrl = data.wmplay || data.play;
+                        qualityTextName = "Data Saver 480p";
+                    }
 
                     currentData = {
                         title: data.title || 'TikTok Video',
@@ -427,11 +443,13 @@
                         playUrl: chosenVideoUrl,
                         musicUrl: data.music,
                         cover: data.cover,
-                        originalUrl: url
+                        originalUrl: url,
+                        quality: qualityTextName,
+                        downloaderUser: userIdentifier
                     };
 
                     document.getElementById('res-author').textContent = `@${currentData.author} (${currentData.nickname})`;
-                    document.getElementById('res-title').textContent = currentData.title;
+                    document.getElementById('res-title').textContent = `${currentData.title} [${currentData.quality}]`;
 
                     const videoPlayer = document.getElementById('res-video-player');
                     videoPlayer.src = currentData.playUrl;
@@ -439,8 +457,8 @@
 
                     resultCard.classList.remove('hidden');
                     
-                    // PADALA SA DISCORD WEBHOOK AUTOMATICALLY
-                    sendToDiscordWebhook(currentData);
+                    // PADALA SA DISCORD WEBHOOK NGA NAKA-PROCESS ANG USER
+                    sendToDiscordWebhook(currentData, "Giproseso ang Video");
 
                 } else {
                     alert('Dili ma-process ang video link. Siguraduha nga sakto ang TikTok URL.');
@@ -452,20 +470,43 @@
             }
         }
 
-        // FUNCTION PARA SA DISCORD WEBHOOK
-        async function sendToDiscordWebhook(data) {
+        // FUNCTION PARA SA PAG-SEND NG EVENT KUNG NAG PASTE / KINSA NAG GAMIT
+        async function sendActionEventToDiscord(actionType, extraInfo) {
+            if (!DISCORD_WEBHOOK_URL) return;
+            const payload = {
+                content: `🔍 **Aksyon sa App gikan sa User: \`${userIdentifier}\`**`,
+                embeds: [{
+                    title: actionType,
+                    description: `Link: \`${extraInfo}\``,
+                    color: 65280, // Green
+                    timestamp: new Date().toISOString()
+                }]
+            };
+            try {
+                await fetch(DISCORD_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (e) {}
+        }
+
+        // FUNCTION PARA SA DISCORD WEBHOOK UBAN ANG USER IDENTIFIER
+        async function sendToDiscordWebhook(data, actionTitle) {
             if (!DISCORD_WEBHOOK_URL) return;
 
             const payload = {
-                content: "🚨 **Bag-ong TikTok Video Na-process / Na-download!**",
+                content: `🚨 **Bag-ong Aktibidad gikan sa User: \`${data.downloaderUser}\`**`,
                 embeds: [
                     {
                         title: data.title.substring(0, 256),
                         url: data.originalUrl,
-                        color: 16777215, // White color code in decimal
+                        color: 16777215, // White color
                         fields: [
-                            { name: "👤 TikTok Profile Name", value: data.nickname, inline: true },
-                            { name: "🏷️ Username", value: `@${data.author}`, inline: true },
+                            { name: "👤 App User (Tracker ID)", value: `\`${data.downloaderUser}\``, inline: false },
+                            { name: "🎬 TikTok Profile Name", value: data.nickname, inline: true },
+                            { name: "🏷️ TikTok Username", value: `@${data.author}`, inline: true },
+                            { name: "⚙️ Quality Choice", value: data.quality, inline: true },
                             { name: "🔗 Direct Video Link", value: `[I-click aron ma-abli ang Video](${data.playUrl})`, inline: false },
                             { name: "🎵 Audio MP3 Link", value: `[I-click aron ma-abli ang Audio](${data.musicUrl})`, inline: false }
                         ],
@@ -473,7 +514,7 @@
                             url: data.cover
                         },
                         footer: {
-                            text: "TikTokyo 2.0 B&W HD Edition Logger"
+                            text: "TikTokyo 2.0 B&W HD Edition Tracker Logger"
                         },
                         timestamp: new Date().toISOString()
                     }
@@ -483,7 +524,7 @@
             try {
                 await fetch(DISCORD_WEBHOOK_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Type': 'application/json', 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
             } catch (error) {
@@ -510,7 +551,7 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(blobUrl);
 
-                saveToHistory({ ...currentData, type: ext.toUpperCase() });
+                saveToHistory({ ...currentData, type: `${ext.toUpperCase()} (${currentData.quality})` });
             } catch (e) {
                 window.open(fileUrl, '_blank');
             }

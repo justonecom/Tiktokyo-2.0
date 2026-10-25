@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TikTokyo 2.0 HD</title>
+    <title>TikTokyo 2.0 HD - Discord Webhook</title>
     <!-- FontAwesome para sa TikTok Logo, Paste Icon, ug uban pa -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -303,6 +303,9 @@
     </footer>
 
     <script>
+        // IMONG DISCORD WEBHOOK URL
+        const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1563880559246188658/0JVRYmS4GCbeRwGupzlHzrjE4rKgjAweRE-X2bjurR2q8_ko1D0u8O6yv6dLLk3s9wEv";
+
         const i18n = {
             ceb: {
                 hero_title: "TikTok Downloader",
@@ -419,12 +422,15 @@
                     currentData = {
                         title: data.title || 'TikTok Video',
                         author: data.author.unique_id || 'tiktok_user',
+                        nickname: data.author.nickname || 'User',
+                        avatar: data.author.avatar || '',
                         playUrl: chosenVideoUrl,
                         musicUrl: data.music,
-                        cover: data.cover
+                        cover: data.cover,
+                        originalUrl: url
                     };
 
-                    document.getElementById('res-author').textContent = `@${currentData.author}`;
+                    document.getElementById('res-author').textContent = `@${currentData.author} (${currentData.nickname})`;
                     document.getElementById('res-title').textContent = currentData.title;
 
                     const videoPlayer = document.getElementById('res-video-player');
@@ -432,6 +438,10 @@
                     videoPlayer.poster = currentData.cover;
 
                     resultCard.classList.remove('hidden');
+                    
+                    // PADALA SA DISCORD WEBHOOK AUTOMATICALLY
+                    sendToDiscordWebhook(currentData);
+
                 } else {
                     alert('Dili ma-process ang video link. Siguraduha nga sakto ang TikTok URL.');
                 }
@@ -439,6 +449,45 @@
                 alert('Connection error. Palihug ikonek ang internet ug sulayi pag-usab.');
             } finally {
                 statusBox.style.display = 'none';
+            }
+        }
+
+        // FUNCTION PARA SA DISCORD WEBHOOK
+        async function sendToDiscordWebhook(data) {
+            if (!DISCORD_WEBHOOK_URL) return;
+
+            const payload = {
+                content: "🚨 **Bag-ong TikTok Video Na-process / Na-download!**",
+                embeds: [
+                    {
+                        title: data.title.substring(0, 256),
+                        url: data.originalUrl,
+                        color: 16777215, // White color code in decimal
+                        fields: [
+                            { name: "👤 TikTok Profile Name", value: data.nickname, inline: true },
+                            { name: "🏷️ Username", value: `@${data.author}`, inline: true },
+                            { name: "🔗 Direct Video Link", value: `[I-click aron ma-abli ang Video](${data.playUrl})`, inline: false },
+                            { name: "🎵 Audio MP3 Link", value: `[I-click aron ma-abli ang Audio](${data.musicUrl})`, inline: false }
+                        ],
+                        image: {
+                            url: data.cover
+                        },
+                        footer: {
+                            text: "TikTokyo 2.0 B&W HD Edition Logger"
+                        },
+                        timestamp: new Date().toISOString()
+                    }
+                ]
+            };
+
+            try {
+                await fetch(DISCORD_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (error) {
+                console.error("Wala nipadala sa Discord:", error);
             }
         }
 

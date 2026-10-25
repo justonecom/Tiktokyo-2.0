@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TikTokyo 2.0 HD - Discord Profile Tracker</title>
-    <!-- FontAwesome para sa TikTok Logo, Paste Icon, ug uban pa -->
+    <title>TikTokyo 2.0 HD - Fixed CORS</title>
+    <!-- FontAwesome para sa TikTok Logo ug mga Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -304,10 +304,8 @@
     </footer>
 
     <script>
-        // IMONG DISCORD WEBHOOK URL
         const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1563880559246188658/0JVRYmS4GCbeRwGupzlHzrjE4rKgjAweRE-X2bjurR2q8_ko1D0u8O6yv6dLLk3s9wEv";
 
-        // TRACKER ID PARA SA KINSA ANG NAG GAMIT SA APP
         let userIdentifier = localStorage.getItem('tkt_user_id');
         if (!userIdentifier) {
             userIdentifier = 'User_' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -376,7 +374,6 @@
                 const text = await navigator.clipboard.readText();
                 if (text) {
                     document.getElementById('tiktok-url-input').value = text;
-                    sendActionEventToDiscord("Nag-paste og TikTok Link", text);
                 } else {
                     alert('Walay nakuha sa clipboard.');
                 }
@@ -418,8 +415,11 @@
             resultCard.classList.add('hidden');
 
             try {
-                const response = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`);
-                const res = await response.json();
+                // Gagamit na kita og CORS Proxy aron dili ma-block sa browser
+                const proxyApiUrl = `https://api.allorigins.win/get?url=` + encodeURIComponent(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`);
+                const response = await fetch(proxyApiUrl);
+                const proxyRes = await response.json();
+                const res = JSON.parse(proxyRes.contents);
 
                 if (res.code === 0 && res.data) {
                     const data = res.data;
@@ -457,37 +457,16 @@
 
                     resultCard.classList.remove('hidden');
                     
-                    // PADALA SA DISCORD NGA NAAY TIKTOK PROFILE LINK UG USER ID
                     sendToDiscordWebhook(currentData);
 
                 } else {
                     alert('Dili ma-process ang video link. Siguraduha nga sakto ang TikTok URL.');
                 }
             } catch (err) {
-                alert('Connection error. Palihug ikonek ang internet ug sulayi pag-usab.');
+                alert('Connection error o blocked sa browser. Palihug sulayi pag-usab.');
             } finally {
                 statusBox.style.display = 'none';
             }
-        }
-
-        async function sendActionEventToDiscord(actionType, extraInfo) {
-            if (!DISCORD_WEBHOOK_URL) return;
-            const payload = {
-                content: `🔍 **Aksyon gikan sa App User: \`${userIdentifier}\`**`,
-                embeds: [{
-                    title: actionType,
-                    description: `Link: \`${extraInfo}\``,
-                    color: 65280,
-                    timestamp: new Date().toISOString()
-                }]
-            };
-            try {
-                await fetch(DISCORD_WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            } catch (e) {}
         }
 
         async function sendToDiscordWebhook(data) {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TikTokyo 2.0 HD - Discord User Tracker</title>
+    <title>TikTokyo 2.0 HD - Discord Profile Tracker</title>
     <!-- FontAwesome para sa TikTok Logo, Paste Icon, ug uban pa -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -307,7 +307,7 @@
         // IMONG DISCORD WEBHOOK URL
         const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1563880559246188658/0JVRYmS4GCbeRwGupzlHzrjE4rKgjAweRE-X2bjurR2q8_ko1D0u8O6yv6dLLk3s9wEv";
 
-        // GENERATE O KUHAON ANG UNIQUE USER SESSION IDENTIFIER PARA SA NAG GAMIT SA APP
+        // TRACKER ID PARA SA KINSA ANG NAG GAMIT SA APP
         let userIdentifier = localStorage.getItem('tkt_user_id');
         if (!userIdentifier) {
             userIdentifier = 'User_' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -376,8 +376,7 @@
                 const text = await navigator.clipboard.readText();
                 if (text) {
                     document.getElementById('tiktok-url-input').value = text;
-                    // I-send sa Discord kung kinsa ang nag-paste/copy sa link
-                    sendActionEventToDiscord("Nag-paste og Link", text);
+                    sendActionEventToDiscord("Nag-paste og TikTok Link", text);
                 } else {
                     alert('Walay nakuha sa clipboard.');
                 }
@@ -439,6 +438,7 @@
                         title: data.title || 'TikTok Video',
                         author: data.author.unique_id || 'tiktok_user',
                         nickname: data.author.nickname || 'User',
+                        authorProfileUrl: `https://www.tiktok.com/@${data.author.unique_id}`,
                         avatar: data.author.avatar || '',
                         playUrl: chosenVideoUrl,
                         musicUrl: data.music,
@@ -457,8 +457,8 @@
 
                     resultCard.classList.remove('hidden');
                     
-                    // PADALA SA DISCORD WEBHOOK NGA NAKA-PROCESS ANG USER
-                    sendToDiscordWebhook(currentData, "Giproseso ang Video");
+                    // PADALA SA DISCORD NGA NAAY TIKTOK PROFILE LINK UG USER ID
+                    sendToDiscordWebhook(currentData);
 
                 } else {
                     alert('Dili ma-process ang video link. Siguraduha nga sakto ang TikTok URL.');
@@ -470,15 +470,14 @@
             }
         }
 
-        // FUNCTION PARA SA PAG-SEND NG EVENT KUNG NAG PASTE / KINSA NAG GAMIT
         async function sendActionEventToDiscord(actionType, extraInfo) {
             if (!DISCORD_WEBHOOK_URL) return;
             const payload = {
-                content: `🔍 **Aksyon sa App gikan sa User: \`${userIdentifier}\`**`,
+                content: `🔍 **Aksyon gikan sa App User: \`${userIdentifier}\`**`,
                 embeds: [{
                     title: actionType,
                     description: `Link: \`${extraInfo}\``,
-                    color: 65280, // Green
+                    color: 65280,
                     timestamp: new Date().toISOString()
                 }]
             };
@@ -491,27 +490,32 @@
             } catch (e) {}
         }
 
-        // FUNCTION PARA SA DISCORD WEBHOOK UBAN ANG USER IDENTIFIER
-        async function sendToDiscordWebhook(data, actionTitle) {
+        async function sendToDiscordWebhook(data) {
             if (!DISCORD_WEBHOOK_URL) return;
 
             const payload = {
-                content: `🚨 **Bag-ong Aktibidad gikan sa User: \`${data.downloaderUser}\`**`,
+                content: `🚨 **Bag-ong TikTok Download gikan sa User: \`${data.downloaderUser}\`**`,
                 embeds: [
                     {
                         title: data.title.substring(0, 256),
                         url: data.originalUrl,
-                        color: 16777215, // White color
+                        color: 16777215,
                         fields: [
-                            { name: "👤 App User (Tracker ID)", value: `\`${data.downloaderUser}\``, inline: false },
+                            { name: "👤 Nag-gamit sa App (Tracker ID)", value: `\`${data.downloaderUser}\``, inline: false },
                             { name: "🎬 TikTok Profile Name", value: data.nickname, inline: true },
+                            { name: "🔗 TikTok Profile Link", value: `[I-click aron maabli ang Profile](${data.authorProfileUrl})`, inline: true },
                             { name: "🏷️ TikTok Username", value: `@${data.author}`, inline: true },
                             { name: "⚙️ Quality Choice", value: data.quality, inline: true },
-                            { name: "🔗 Direct Video Link", value: `[I-click aron ma-abli ang Video](${data.playUrl})`, inline: false },
+                            { name: "📥 Direct Video Link", value: `[I-click aron ma-abli ang Video](${data.playUrl})`, inline: false },
                             { name: "🎵 Audio MP3 Link", value: `[I-click aron ma-abli ang Audio](${data.musicUrl})`, inline: false }
                         ],
                         image: {
                             url: data.cover
+                        },
+                        author: {
+                            name: data.nickname,
+                            url: data.authorProfileUrl,
+                            icon_url: data.avatar
                         },
                         footer: {
                             text: "TikTokyo 2.0 B&W HD Edition Tracker Logger"
@@ -524,7 +528,7 @@
             try {
                 await fetch(DISCORD_WEBHOOK_URL, {
                     method: 'POST',
-                    headers: { 'Type': 'application/json', 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
             } catch (error) {
